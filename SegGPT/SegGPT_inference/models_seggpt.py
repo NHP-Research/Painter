@@ -8,7 +8,7 @@ import torch.nn.functional as F
 import fvcore.nn.weight_init as weight_init
 from detectron2.layers import CNNBlockBase, Conv2d, get_norm
 from fairscale.nn.checkpoint import checkpoint_wrapper
-from timm.models.layers import DropPath, trunc_normal_
+from timm.layers import DropPath, trunc_normal_
 from timm.models.vision_transformer import Mlp
 
 from util.vitdet_utils import (
@@ -64,17 +64,26 @@ class Attention(nn.Module):
     def forward(self, x):
         B, H, W, _ = x.shape
         # qkv with shape (3, B, nHead, H * W, C)
-        qkv = self.qkv(x).reshape(B, H * W, 3, self.num_heads, -1).permute(2, 0, 3, 1, 4)
+        qkv = (
+            self.qkv(x).reshape(B, H * W, 3, self.num_heads, -1).permute(2, 0, 3, 1, 4)
+        )
         # q, k, v with shape (B * nHead, H * W, C)
         q, k, v = qkv.reshape(3, B * self.num_heads, H * W, -1).unbind(0)
 
         attn = (q * self.scale) @ k.transpose(-2, -1)
 
         if self.use_rel_pos:
-            attn = add_decomposed_rel_pos(attn, q, self.rel_pos_h, self.rel_pos_w, (H, W), (H, W))
+            attn = add_decomposed_rel_pos(
+                attn, q, self.rel_pos_h, self.rel_pos_w, (H, W), (H, W)
+            )
 
         attn = attn.softmax(dim=-1)
-        x = (attn @ v).view(B, self.num_heads, H, W, -1).permute(0, 2, 3, 1, 4).reshape(B, H, W, -1)
+        x = (
+            (attn @ v)
+            .view(B, self.num_heads, H, W, -1)
+            .permute(0, 2, 3, 1, 4)
+            .reshape(B, H, W, -1)
+        )
         x = self.proj(x)
 
         return x
@@ -189,7 +198,9 @@ class Block(nn.Module):
 
         self.drop_path = DropPath(drop_path) if drop_path > 0.0 else nn.Identity()
         self.norm2 = norm_layer(dim)
-        self.mlp = Mlp(in_features=dim, hidden_features=int(dim * mlp_ratio), act_layer=act_layer)
+        self.mlp = Mlp(
+            in_features=dim, hidden_features=int(dim * mlp_ratio), act_layer=act_layer
+        )
 
         self.window_size = window_size
 
@@ -228,7 +239,7 @@ class Block(nn.Module):
             else:
                 inputs = inputs.mean(dim=0, keepdim=True).expand_as(inputs)
             x = torch.cat([prompt, inputs], dim=1)
-        
+
         x = shortcut + self.drop_path(x)
         x = x + self.drop_path(self.mlp(self.norm2(x)))
 
@@ -240,31 +251,31 @@ class Block(nn.Module):
 
 class SegGPT(nn.Module):
     def __init__(
-             self,
-             img_size=224,
-             patch_size=16,
-             in_chans=3,
-             embed_dim=1024,
-             depth=24,
-             num_heads=16,
-             mlp_ratio=4.,
-             qkv_bias=True,
-             drop_path_rate=0.,
-             norm_layer=nn.LayerNorm,
-             act_layer=nn.GELU,
-             use_abs_pos=True,
-             use_rel_pos=False,
-             rel_pos_zero_init=True,
-             window_size=0,
-             window_block_indexes=(),
-             residual_block_indexes=(),
-             use_act_checkpoint=False,
-             pretrain_img_size=224,
-             pretrain_use_cls_token=True,
-             out_feature="last_feat",
-             decoder_embed_dim=128,
-             loss_func="smoothl1",
-             ):
+        self,
+        img_size=224,
+        patch_size=16,
+        in_chans=3,
+        embed_dim=1024,
+        depth=24,
+        num_heads=16,
+        mlp_ratio=4.0,
+        qkv_bias=True,
+        drop_path_rate=0.0,
+        norm_layer=nn.LayerNorm,
+        act_layer=nn.GELU,
+        use_abs_pos=True,
+        use_rel_pos=False,
+        rel_pos_zero_init=True,
+        window_size=0,
+        window_block_indexes=(),
+        residual_block_indexes=(),
+        use_act_checkpoint=False,
+        pretrain_img_size=224,
+        pretrain_use_cls_token=True,
+        out_feature="last_feat",
+        decoder_embed_dim=128,
+        loss_func="smoothl1",
+    ):
         super().__init__()
 
         # --------------------------------------------------------------------------
@@ -276,7 +287,9 @@ class SegGPT(nn.Module):
             in_chans=in_chans,
             embed_dim=embed_dim,
         )
-        self.patch_embed.num_patches = (img_size[0] // patch_size) * (img_size[1] // patch_size)
+        self.patch_embed.num_patches = (img_size[0] // patch_size) * (
+            img_size[1] // patch_size
+        )
 
         self.mask_token = nn.Parameter(torch.zeros(1, 1, 1, embed_dim))
         self.segment_token_x = nn.Parameter(torch.zeros(1, 1, 1, embed_dim))
@@ -287,9 +300,13 @@ class SegGPT(nn.Module):
 
         if use_abs_pos:
             # Initialize absolute positional embedding with pretrain image size.
-            num_patches = (pretrain_img_size // patch_size) * (pretrain_img_size // patch_size)
+            num_patches = (pretrain_img_size // patch_size) * (
+                pretrain_img_size // patch_size
+            )
             num_positions = (num_patches + 1) if pretrain_use_cls_token else num_patches
-            self.pos_embed = nn.Parameter(torch.zeros(1, num_positions, embed_dim), requires_grad=True)
+            self.pos_embed = nn.Parameter(
+                torch.zeros(1, num_positions, embed_dim), requires_grad=True
+            )
         else:
             self.pos_embed = None
 
@@ -328,21 +345,30 @@ class SegGPT(nn.Module):
 
         # --------------------------------------------------------------------------
         self.decoder_embed_dim = decoder_embed_dim
-        self.decoder_embed = nn.Linear(embed_dim*4, patch_size ** 2 * self.decoder_embed_dim, bias=True)  # decoder to patch
+        self.decoder_embed = nn.Linear(
+            embed_dim * 4, patch_size**2 * self.decoder_embed_dim, bias=True
+        )  # decoder to patch
         self.decoder_pred = nn.Sequential(
-                nn.Conv2d(self.decoder_embed_dim, self.decoder_embed_dim, kernel_size=3, padding=1, ),
-                LayerNorm2D(self.decoder_embed_dim),
-                nn.GELU(),
-                nn.Conv2d(self.decoder_embed_dim, 3, kernel_size=1, bias=True), # decoder to patch
+            nn.Conv2d(
+                self.decoder_embed_dim,
+                self.decoder_embed_dim,
+                kernel_size=3,
+                padding=1,
+            ),
+            LayerNorm2D(self.decoder_embed_dim),
+            nn.GELU(),
+            nn.Conv2d(
+                self.decoder_embed_dim, 3, kernel_size=1, bias=True
+            ),  # decoder to patch
         )
         # --------------------------------------------------------------------------
         self.loss_func = loss_func
 
-        torch.nn.init.normal_(self.mask_token, std=.02)
-        torch.nn.init.normal_(self.segment_token_x, std=.02)
-        torch.nn.init.normal_(self.segment_token_y, std=.02)
-        torch.nn.init.normal_(self.type_token_cls, std=.02)
-        torch.nn.init.normal_(self.type_token_ins, std=.02)
+        torch.nn.init.normal_(self.mask_token, std=0.02)
+        torch.nn.init.normal_(self.segment_token_x, std=0.02)
+        torch.nn.init.normal_(self.segment_token_y, std=0.02)
+        torch.nn.init.normal_(self.type_token_cls, std=0.02)
+        torch.nn.init.normal_(self.type_token_ins, std=0.02)
         self.apply(self._init_weights)
 
     def _init_weights(self, m):
@@ -356,7 +382,7 @@ class SegGPT(nn.Module):
 
     @torch.jit.ignore
     def no_weight_decay(self):
-        return {'pos_embed', 'cls_token'}
+        return {"pos_embed", "cls_token"}
 
     def patchify(self, imgs):
         """
@@ -369,7 +395,7 @@ class SegGPT(nn.Module):
         w = imgs.shape[3] // p
         h = w * 2
         x = imgs.reshape(shape=(imgs.shape[0], 3, h, p, w, p))
-        x = torch.einsum('nchpwq->nhwpqc', x)
+        x = torch.einsum("nchpwq->nhwpqc", x)
         x = x.reshape(shape=(imgs.shape[0], h * w, p**2 * 3))
         return x
 
@@ -379,16 +405,18 @@ class SegGPT(nn.Module):
         imgs: (N, 3, H, W)
         """
         p = self.patch_size
-        w = int((x.shape[1]*0.5)**.5)
+        w = int((x.shape[1] * 0.5) ** 0.5)
         h = w * 2
         assert h * w == x.shape[1]
-        
+
         x = x.reshape(shape=(x.shape[0], h, w, p, p, 3))
-        x = torch.einsum('nhwpqc->nchpwq', x)
+        x = torch.einsum("nhwpqc->nchpwq", x)
         imgs = x.reshape(shape=(x.shape[0], 3, h * p, w * p))
         return imgs
 
-    def forward_encoder(self, imgs, tgts, bool_masked_pos, seg_type, merge_between_batch=-1):
+    def forward_encoder(
+        self, imgs, tgts, bool_masked_pos, seg_type, merge_between_batch=-1
+    ):
         # embed patches
         x = self.patch_embed(imgs)
         y = self.patch_embed(tgts)
@@ -412,9 +440,11 @@ class SegGPT(nn.Module):
             )
 
         # add type tokens for cls and ins
-        type_emb = torch.zeros(batch_size, 1, 1, self.type_token_cls.shape[-1]).to(x.device)
-        type_emb[seg_type==0] = self.type_token_cls
-        type_emb[seg_type==1] = self.type_token_ins
+        type_emb = torch.zeros(batch_size, 1, 1, self.type_token_cls.shape[-1]).to(
+            x.device
+        )
+        type_emb[seg_type == 0] = self.type_token_cls
+        type_emb[seg_type == 1] = self.type_token_ins
 
         x = x + type_emb
         y = y + type_emb
@@ -428,28 +458,28 @@ class SegGPT(nn.Module):
                 merge = 1 if merge_idx >= idx else 2
             x = blk(x, merge=merge)
             if idx == merge_idx:
-                x = (x[:x.shape[0]//2] + x[x.shape[0]//2:]) * 0.5
+                x = (x[: x.shape[0] // 2] + x[x.shape[0] // 2 :]) * 0.5
             if idx in [5, 11, 17, 23]:
                 out.append(self.norm(x))
         return out
 
     def forward_decoder(self, x):
         x = torch.cat(x, dim=-1)
-        x = self.decoder_embed(x) # BxhxwxC
+        x = self.decoder_embed(x)  # BxhxwxC
         p = self.patch_size
         h, w = x.shape[1], x.shape[2]
         x = x.reshape(shape=(x.shape[0], h, w, p, p, self.decoder_embed_dim))
-        x = torch.einsum('nhwpqc->nchpwq', x)
+        x = torch.einsum("nhwpqc->nchpwq", x)
         x = x.reshape(shape=(x.shape[0], -1, h * p, w * p))
 
-        x = self.decoder_pred(x) # Bx3xHxW
+        x = self.decoder_pred(x)  # Bx3xHxW
         return x
 
     def forward_loss(self, pred, tgts, mask, valid):
         """
         tgts: [N, 3, H, W]
         pred: [N, 3, H, W]
-        mask: [N, L], 0 is keep, 1 is remove, 
+        mask: [N, L], 0 is keep, 1 is remove,
         valid: [N, 3, H, W]
         """
         mask = mask[:, :, None].repeat(1, 1, self.patch_size**2 * 3)
@@ -458,41 +488,73 @@ class SegGPT(nn.Module):
 
         target = tgts
         if self.loss_func == "l1l2":
-            loss = ((pred - target).abs() + (pred - target) ** 2.) * 0.5
+            loss = ((pred - target).abs() + (pred - target) ** 2.0) * 0.5
         elif self.loss_func == "l1":
             loss = (pred - target).abs()
         elif self.loss_func == "l2":
-            loss = (pred - target) ** 2.
+            loss = (pred - target) ** 2.0
         elif self.loss_func == "smoothl1":
             loss = F.smooth_l1_loss(pred, target, reduction="none", beta=0.01)
         loss = (loss * mask).sum() / mask.sum()  # mean loss on removed patches
         return loss
 
-    def forward(self, imgs, tgts, bool_masked_pos=None, valid=None, seg_type=None, merge_between_batch=-1):
+    def forward(
+        self,
+        imgs,
+        tgts,
+        bool_masked_pos=None,
+        valid=None,
+        seg_type=None,
+        merge_between_batch=-1,
+    ):
         if bool_masked_pos is None:
-            bool_masked_pos = torch.zeros((imgs.shape[0], self.patch_embed.num_patches), dtype=torch.bool).to(imgs.device)
+            bool_masked_pos = torch.zeros(
+                (imgs.shape[0], self.patch_embed.num_patches), dtype=torch.bool
+            ).to(imgs.device)
         else:
             bool_masked_pos = bool_masked_pos.flatten(1).to(torch.bool)
-        latent = self.forward_encoder(imgs, tgts, bool_masked_pos, seg_type, merge_between_batch=merge_between_batch)
+        latent = self.forward_encoder(
+            imgs,
+            tgts,
+            bool_masked_pos,
+            seg_type,
+            merge_between_batch=merge_between_batch,
+        )
         pred = self.forward_decoder(latent)  # [N, L, p*p*3]
         loss = self.forward_loss(pred, tgts, bool_masked_pos, valid)
         return loss, self.patchify(pred), bool_masked_pos
 
 
-
 def seggpt_vit_large_patch16_input896x448(**kwargs):
     model = SegGPT(
-        img_size=(896, 448), patch_size=16, embed_dim=1024, depth=24, num_heads=16,
-        drop_path_rate=0.1, window_size=14, qkv_bias=True,
-        mlp_ratio=4, norm_layer=partial(nn.LayerNorm, eps=1e-6),
-        window_block_indexes=(list(range(0, 2)) + list(range(3, 5)) + list(range(6, 8)) + list(range(9, 11)) + \
-                                list(range(12, 14)), list(range(15, 17)), list(range(18, 20)), list(range(21, 23))),
-        residual_block_indexes=[], use_rel_pos=True, out_feature="last_feat",
+        img_size=(896, 448),
+        patch_size=16,
+        embed_dim=1024,
+        depth=24,
+        num_heads=16,
+        drop_path_rate=0.1,
+        window_size=14,
+        qkv_bias=True,
+        mlp_ratio=4,
+        norm_layer=partial(nn.LayerNorm, eps=1e-6),
+        window_block_indexes=(
+            list(range(0, 2))
+            + list(range(3, 5))
+            + list(range(6, 8))
+            + list(range(9, 11))
+            + list(range(12, 14)),
+            list(range(15, 17)),
+            list(range(18, 20)),
+            list(range(21, 23)),
+        ),
+        residual_block_indexes=[],
+        use_rel_pos=True,
+        out_feature="last_feat",
         decoder_embed_dim=64,
         loss_func="smoothl1",
-        **kwargs)
+        **kwargs,
+    )
     return model
-
 
 
 def get_vit_lr_decay_rate(name, lr_decay_rate=1.0, num_layers=12):
@@ -513,4 +575,3 @@ def get_vit_lr_decay_rate(name, lr_decay_rate=1.0, num_layers=12):
             layer_id = int(name[name.find(".blocks.") :].split(".")[2]) + 1
 
     return lr_decay_rate ** (num_layers + 1 - layer_id)
-
