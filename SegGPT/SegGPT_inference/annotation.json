@@ -1,0 +1,17 @@
+[
+    {
+        "path": "Group_1/image_0.jpg",
+        "points": [[1570, 1736]],
+        "labels": [1]
+    },
+    {
+        "path": "Group_2/image_0.jpg",
+        "points": [[1459,1992]],
+        "labels": [1]
+    },
+    {
+        "path": "Group_3/image_0.jpg",
+        "points": [[1475,2000]],
+        "labels": [1]
+    }
+]
