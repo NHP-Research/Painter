@@ -54,7 +54,7 @@ if __name__ == '__main__':
     sam.to(device=device)
     predictor = SamPredictor(sam)
 
-    with open("SegGPT/SegGPT_inference/annotation.json", "r") as f:
+    with open("annotation.json", "r") as f:
         annotation = json.load(f)
     
     for anno in annotation:
