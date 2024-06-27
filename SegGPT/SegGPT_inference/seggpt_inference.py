@@ -7,6 +7,9 @@ import numpy as np
 from seggpt_engine import inference_image, inference_video
 import models_seggpt
 
+import glob
+
+dataset_path = "/content/drive/MyDrive/Research/RatSoles"
 
 imagenet_mean = np.array([0.485, 0.456, 0.406])
 imagenet_std = np.array([0.229, 0.224, 0.225])
@@ -47,6 +50,15 @@ def prepare_model(chkpt_dir, arch='seggpt_vit_large_patch16_input896x448', seg_t
     model.eval()
     return model
 
+def inference_all(model, device, args):
+    for g in range(1, 6):
+        input_path = glob.glob(os.path.join(dataset_path, f"Group_{g}", "*"))
+    print(input_path)
+    for input_image in input_path:
+        print("Inferring on", input_image)
+        out_path = os.path.join(dataset_path, "outputs", os.path.basename(input_image))
+        print("Output path:",out_path)
+        inference_image(model, device, input_image, args.prompt_image, args.prompt_target, out_path)
 
 if __name__ == '__main__':
     args = get_args_parser()
@@ -55,20 +67,22 @@ if __name__ == '__main__':
     model = prepare_model(args.ckpt_path, args.model, args.seg_type).to(device)
     print('Model loaded.')
 
-    assert args.input_image or args.input_video and not (args.input_image and args.input_video)
-    if args.input_image is not None:
-        assert args.prompt_image is not None and args.prompt_target is not None
+    inference_all(model, device, args)
 
-        img_name = os.path.basename(args.input_image)
-        out_path = os.path.join(args.output_dir, "output_" + '.'.join(img_name.split('.')[:-1]) + '.png')
+    # assert args.input_image or args.input_video and not (args.input_image and args.input_video)
+    # if args.input_image is not None:
+    #     assert args.prompt_image is not None and args.prompt_target is not None
 
-        inference_image(model, device, args.input_image, args.prompt_image, args.prompt_target, out_path)
+    #     img_name = os.path.basename(args.input_image)
+    #     out_path = os.path.join(args.output_dir, "output_" + '.'.join(img_name.split('.')[:-1]) + '.png')
+
+    #     inference_image(model, device, args.input_image, args.prompt_image, args.prompt_target, out_path)
     
-    if args.input_video is not None:
-        assert args.prompt_target is not None and len(args.prompt_target) == 1
-        vid_name = os.path.basename(args.input_video)
-        out_path = os.path.join(args.output_dir, "output_" + '.'.join(vid_name.split('.')[:-1]) + '.mp4')
+    # if args.input_video is not None:
+    #     assert args.prompt_target is not None and len(args.prompt_target) == 1
+    #     vid_name = os.path.basename(args.input_video)
+    #     out_path = os.path.join(args.output_dir, "output_" + '.'.join(vid_name.split('.')[:-1]) + '.mp4')
 
-        inference_video(model, device, args.input_video, args.num_frames, args.prompt_image, args.prompt_target, out_path)
+    #     inference_video(model, device, args.input_video, args.num_frames, args.prompt_image, args.prompt_target, out_path)
 
     print('Finished.')
