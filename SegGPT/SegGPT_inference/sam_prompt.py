@@ -59,4 +59,4 @@ if __name__ == '__main__':
     
     for anno in annotation:
         print(f"Processing {anno['image_path']}")
-        generate_target_image(os.path.join(dataset_path, anno["image_path"]), np.array(anno["points"]), np.array(anno["labels"]), predictor, os.path.join(dataset_path, anno["target_path"]))
+        generate_target_image(os.path.join(dataset_path, anno["path"]), np.array(anno["points"]), np.array(anno["labels"]), predictor, os.path.join(dataset_path, anno["target_path"]))
