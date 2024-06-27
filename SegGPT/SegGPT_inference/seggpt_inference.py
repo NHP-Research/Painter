@@ -56,7 +56,7 @@ def inference_all(model, device, args):
     print(input_path)
     for input_image in input_path:
         print("Inferring on", input_image)
-        out_path = os.path.join(dataset_path, "outputs", os.path.basename(input_image))
+        out_path = os.path.join(dataset_path, "outputs", f"Group_{g}", os.path.basename(input_image))
         print("Output path:",out_path)
         inference_image(model, device, input_image, args.prompt_image, args.prompt_target, out_path)
 
