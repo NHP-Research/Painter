@@ -53,12 +53,12 @@ def prepare_model(chkpt_dir, arch='seggpt_vit_large_patch16_input896x448', seg_t
 def inference_all(model, device, args):
     for g in range(1, 6):
         input_path = glob.glob(os.path.join(dataset_path, f"Group_{g}", "*"))
-    print(input_path)
-    for input_image in input_path:
-        print("Inferring on", input_image)
-        out_path = os.path.join(dataset_path, "outputs", f"Group_{g}", os.path.basename(input_image))
-        print("Output path:",out_path)
-        inference_image(model, device, input_image, args.prompt_image, args.prompt_target, out_path)
+        print(input_path)
+        for input_image in input_path:
+            print("Inferring on", input_image)
+            out_path = os.path.join(dataset_path, "outputs", f"Group_{g}", os.path.basename(input_image))
+            print("Output path:",out_path)
+            inference_image(model, device, input_image, args.prompt_image, args.prompt_target, out_path)
 
 if __name__ == '__main__':
     args = get_args_parser()
