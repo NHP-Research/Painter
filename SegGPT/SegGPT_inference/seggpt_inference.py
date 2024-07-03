@@ -67,22 +67,22 @@ if __name__ == '__main__':
     model = prepare_model(args.ckpt_path, args.model, args.seg_type).to(device)
     print('Model loaded.')
 
-    inference_all(model, device, args)
+    # inference_all(model, device, args)
 
-    # assert args.input_image or args.input_video and not (args.input_image and args.input_video)
-    # if args.input_image is not None:
-    #     assert args.prompt_image is not None and args.prompt_target is not None
+    assert args.input_image or args.input_video and not (args.input_image and args.input_video)
+    if args.input_image is not None:
+        assert args.prompt_image is not None and args.prompt_target is not None
 
-    #     img_name = os.path.basename(args.input_image)
-    #     out_path = os.path.join(args.output_dir, "output_" + '.'.join(img_name.split('.')[:-1]) + '.png')
+        img_name = os.path.basename(args.input_image)
+        out_path = os.path.join(args.output_dir, "output_" + '.'.join(img_name.split('.')[:-1]) + '.png')
 
-    #     inference_image(model, device, args.input_image, args.prompt_image, args.prompt_target, out_path)
+        inference_image(model, device, args.input_image, args.prompt_image, args.prompt_target, out_path)
     
-    # if args.input_video is not None:
-    #     assert args.prompt_target is not None and len(args.prompt_target) == 1
-    #     vid_name = os.path.basename(args.input_video)
-    #     out_path = os.path.join(args.output_dir, "output_" + '.'.join(vid_name.split('.')[:-1]) + '.mp4')
+    if args.input_video is not None:
+        assert args.prompt_target is not None and len(args.prompt_target) == 1
+        vid_name = os.path.basename(args.input_video)
+        out_path = os.path.join(args.output_dir, "output_" + '.'.join(vid_name.split('.')[:-1]) + '.mp4')
 
-    #     inference_video(model, device, args.input_video, args.num_frames, args.prompt_image, args.prompt_target, out_path)
+        inference_video(model, device, args.input_video, args.num_frames, args.prompt_image, args.prompt_target, out_path)
 
     print('Finished.')
